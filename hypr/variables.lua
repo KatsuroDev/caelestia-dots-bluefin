@@ -7,10 +7,11 @@ return {
 
     -- Apps
     terminal                   = "foot",
-    browser                    = "firefox",
-    editor                     = "codium",
+    browser                    = "flatpak run app.zen_browser.app",
+    editor                     = "code",
     fileExplorer               = "thunar",
     audioSettings              = "pwvucontrol",
+    gituiclient                = "flatpak run com.axosoft.GitKraken",
 
     -- Touchpad
     touchpadDisableTyping      = true,
@@ -102,7 +103,7 @@ return {
     kbToggleWindowFloating     = "SUPER + ALT + Space",
     kbCloseWindow              = "SUPER + Q",
 
-    -- Special workspaces toggles
+    -- Special workspace toggles
     kbSpecialWs                = "SUPER + S",
     kbSystemMonitorWs          = "CTRL + SHIFT + Escape",
     kbMusicWs                  = "SUPER + M",
