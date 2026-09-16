@@ -67,17 +67,12 @@ local function move_actions(win)
     if screen and screen.width and screen.height and win and win.size then
         local monitor_height = screen.height / screen.scale
         local monitor_width  = screen.width / screen.scale
-
         local scale_factor   = (monitor_height / 4) / win.size.y
-
         local target_width   = win.size.x * scale_factor
         local target_height  = win.size.y * scale_factor
-
         local x_resize       = math.floor(math.max(200, target_width))
         local y_resize       = math.floor(math.max(150, target_height))
-
         local offset         = math.min(monitor_width, monitor_height) * 0.03
-
         local move_x         = math.floor(screen.x + monitor_width - x_resize - offset)
         local move_y         = math.floor(screen.y + monitor_height - y_resize - offset)
 
@@ -91,20 +86,35 @@ end
 -- Toggle function
 local home       = os.getenv("HOME")
 local config_dir = os.getenv("XDG_CONFIG_HOME") or (home .. "/.config")
-local json       = require("utils.json") -- rxi's peak library
+local json       = require("utils.json")
 
--- Default config
 local function default_config()
     return {
         communication = {
+            element = {
+                enable = true,
+                match = {
+                    { class = "im.riot.Riot" },
+                    { initial_class = "im.riot.Riot" },
+                    { title = "Element" },
+                },
+                command = { "flatpak", "run", "im.riot.Riot" },
+                move = true,
+            },
             discord  = { enable = true, match = { { class = "discord" } }, command = { "discord" }, move = true },
             whatsapp = { enable = true, match = { { class = "whatsapp" } }, move = true },
         },
         music = {
             spotify = {
                 enable  = true,
-                match   = { { class = "Spotify" }, { initial_title = "Spotify" }, { initial_title = "Spotify Free" } },
-                command = { "spicetify", "watch", "-s" },
+                match   = {
+                    { class = "Spotify" },
+                    { class = "com.spotify.Client" },
+                    { initial_class = "com.spotify.Client" },
+                    { initial_title = "Spotify" },
+                    { initial_title = "Spotify Free" },
+                },
+                command = { "flatpak", "run", "com.spotify.Client" },
                 move    = true,
             },
             feishin = { enable = true, match = { { class = "feishin" } }, move = true },
@@ -125,10 +135,8 @@ end
 local function merge(default_conf, user_conf)
     for category, apps in pairs(user_conf) do
         default_conf[category] = default_conf[category] or {}
-
         for app_name, options in pairs(apps) do
             default_conf[category][app_name] = default_conf[category][app_name] or {}
-
             for key, value in pairs(options) do
                 default_conf[category][app_name][key] = value
             end
@@ -136,11 +144,10 @@ local function merge(default_conf, user_conf)
     end
 end
 
--- Get a field from an object. Allows mapping camelCase to snake_case fields.
 local function get_field(obj, key)
     local value = obj[key]
     if value == nil and type(key) == "string" then
-        value = obj[(key:gsub("(%u)", "_%1")):lower()] -- Try convert camelCase to snake_case
+        value = obj[(key:gsub("(%u)", "_%1")):lower()]
     end
     return value
 end
@@ -150,7 +157,6 @@ local function deep_match(actual, expected)
         if type(actual) ~= "table" and type(actual) ~= "userdata" then
             return false
         end
-
         for key, sub_expected in pairs(expected) do
             if not deep_match(get_field(actual, key), sub_expected) then
                 return false
@@ -162,7 +168,6 @@ local function deep_match(actual, expected)
     end
 end
 
--- "if the client is running" etc function
 local function get_clients(clients, app_config, target_special)
     local matched_clients = {}
     if app_config and app_config.match then
@@ -190,7 +195,7 @@ local function get_clients(clients, app_config, target_special)
     return false, matched_clients
 end
 
-local function shell_join(argv) -- uhh praise danny for this
+local function shell_join(argv)
     local quoted = {}
     for i, arg in ipairs(argv) do
         quoted[i] = "'" .. tostring(arg):gsub("'", [['"'"']]) .. "'"
@@ -198,11 +203,9 @@ local function shell_join(argv) -- uhh praise danny for this
     return table.concat(quoted, " ")
 end
 
--- Merge user config with defaults
 local function load_toggle_config()
     local config = default_config()
-
-    local user_file = io.open(config_dir .. "/caelestia/cli.json", "r") -- CLI config
+    local user_file = io.open(config_dir .. "/caelestia/cli.json", "r")
     if not user_file then
         return config
     end
@@ -214,8 +217,6 @@ local function load_toggle_config()
     if recognized and type(conf_or_error) == "table" then
         merge(config, conf_or_error.toggles or {})
     else
-        -- Invalid cli.json: notify and fall back to defaults.
-        -- conf_or_error holds the parse error (string) or a non-table value on success.
         local reason = recognized and "Expected a JSON object" or tostring(conf_or_error):gsub("^.-:%d+: ", "")
         hl.exec_cmd("caelestia shell toaster error " ..
             shell_join({ "Failed to parse CLI config", reason }) .. " error")
@@ -224,8 +225,6 @@ local function load_toggle_config()
     return config
 end
 
--- Ensure every configured app is present on the special workspace: spawn it if
--- it isn't running, otherwise move any stray clients onto the workspace.
 local function place_apps(apps, special_workspace)
     local target = "special:" .. special_workspace
     local clients = hl.get_windows() or {}
@@ -233,7 +232,6 @@ local function place_apps(apps, special_workspace)
     for _, app in pairs(apps) do
         if app.enable then
             local is_running, target_clients = get_clients(clients, app, special_workspace)
-
             if not is_running then
                 if app.command then
                     hl.dispatch(hl.dsp.exec_cmd(shell_join(app.command), { workspace = target }))
@@ -252,16 +250,12 @@ end
 local function toggle(special_workspace)
     return function()
         local active_workspace = hl.get_active_special_workspace()
-
-        -- Generic special workspace toggle: close if any is open, or open "special"
         if special_workspace == "specialws" then
             local target = active_workspace and active_workspace.name:gsub("^special:", "") or "special"
             return hl.dispatch(hl.dsp.workspace.toggle_special(target))
         end
 
         local on_correct_ws = active_workspace and active_workspace.name == "special:" .. special_workspace
-
-        -- Focus workspace before apps
         if not on_correct_ws then
             hl.dispatch(hl.dsp.focus({ workspace = "special:" .. special_workspace }))
         end
@@ -271,7 +265,6 @@ local function toggle(special_workspace)
             place_apps(apps, special_workspace)
         end
 
-        -- Hide workspace if already active
         if on_correct_ws then
             hl.dispatch(hl.dsp.workspace.toggle_special(special_workspace))
         end
